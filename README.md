@@ -1,0 +1,1 @@
+# FashionCLIP_KG_garments
