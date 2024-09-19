@@ -473,7 +473,7 @@ if __name__ == '__main__':
         # else:
         #     alpha = initial_alpha
         train(model, train_dataloader, optimizer, G, epoch,test_loader,top_k=5)
-        torch.save(model.state_dict(), f"fashion_mode_select1.pth")
+        torch.save(model.state_dict(), f"fashionclipKG.pth")
     # 保存训练和测试结果
     save_results()
     # 绘制损失曲线
