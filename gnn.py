@@ -254,6 +254,6 @@ class GCN(torch.nn.Module):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
         x = F.dropout(x, training=self.training)
-        # 第二层图卷积
+        # Second layer graph convolution
         x = self.conv2(x, edge_index)
         return x

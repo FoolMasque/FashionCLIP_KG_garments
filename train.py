@@ -23,7 +23,7 @@ from torch_geometric.data import DataLoader
 from create_kg import get_graph_data
 from torchmetrics.functional import accuracy
 
-# 保存损失和准确率的列表
+# Keep a list of losses and accuracy rates
 train_loss_list = []
 train_acc_list = []
 test_acc_list = []
@@ -49,7 +49,7 @@ def train(model, dataloader, optimizer, G, epoch, test_loader, top_k=5):
 
             total_loss = total_contrastive_loss + outputs["gnn_loss"]
 
-        # 计算准确率
+        # Calculation accuracy
         model.eval()
         with torch.no_grad():
             for key in all_prompts:
@@ -60,16 +60,16 @@ def train(model, dataloader, optimizer, G, epoch, test_loader, top_k=5):
                 pred_labels = similarity_scores.argmax(dim=1)
                 acc = (pred_labels == labels[key][0].cuda()).float().mean()
                 total_acc[key] += acc.item()
-        # 反向传播和优化
+        # Backpropagation and optimisation
         total_loss.backward()
         avg_loss += total_loss.item()
         optimizer.step()
 
-    # 记录训练损失
+    # Recording training losses
     avg_loss = avg_loss / len(dataloader)
     train_loss_list.append(avg_loss)
 
-    # 打印训练损失
+    # Print training loss
     print(f"Epoch {epoch}, Training Loss: {avg_loss:.4f}")
 
     # 记录每个类别的平均训练准确率
@@ -78,11 +78,11 @@ def train(model, dataloader, optimizer, G, epoch, test_loader, top_k=5):
         train_acc_list.append((key, avg_acc))
         print(f"Training item: {key}, total_acc: {avg_acc:.4f}")
 
-    # 进行测试评估
-    dest(model, test_loader, G, top_k)
+    # Conducting test evaluations
+    test(model, test_loader, G, top_k)
 
 
-def dest(model, test_loader, G, top_k):
+def test(model, test_loader, G, top_k):
     model.eval()
     total_acc_1 = {}
     feature_ = {}
@@ -116,7 +116,7 @@ def dest(model, test_loader, G, top_k):
                 acc = (pred_labels == labels[key][0].cuda()).float().mean()
                 total_acc_1[key] += acc.item()
 
-    # 记录测试结果
+    # Recording test results
     for key in feature_.keys():
         feature_[key] = torch.cat(feature_[key], dim=0)
         label[key] = torch.tensor(label[key])
@@ -124,34 +124,34 @@ def dest(model, test_loader, G, top_k):
         print("key:", {key}, "all_cmc:", all_cmc.numpy() / 100, "mAP", mAP / 100)
         test_acc_list.append((key, all_cmc.numpy() / 100, mAP / 100))
 
-    # 打印测试准确率
+    # Print Test Accuracy
     for key, acc in total_acc_1.items():
         avg_acc = acc / len(test_loader)
         print(f"Testing item: {key}, total_acc: {avg_acc:.4f}")
 
 def save_results():
-    # 保存训练和测试结果到文件
+    # Save training and test results to file
     if not os.path.exists('results'):
         os.makedirs('results')
 
-    # 保存训练损失
+    # Preservation of training losses
     with open('results/train_loss.txt', 'w') as f:
         for loss in train_loss_list:
             f.write(f"{loss}\n")
 
-    # 保存训练准确率
+    # Preservation of training accuracy
     with open('results/train_acc.txt', 'w') as f:
         for key, acc in train_acc_list:
             f.write(f"{key}: {acc}\n")
 
-    # 保存测试结果
+    # Saving test results
     with open('results/test_results.txt', 'w') as f:
         for key, cmc, mAP in test_acc_list:
             f.write(f"{key}: CMC: {cmc}, mAP: {mAP}\n")
 
 
 def plot_loss_curve():
-    # 绘制训练损失曲线
+    # Plotting training loss curves
     plt.figure(figsize=(10, 6))
     plt.plot(range(len(train_loss_list)), train_loss_list, label='Training Loss', marker='o', color='b')
     plt.xlabel('Epoch')
@@ -184,56 +184,56 @@ if __name__ == '__main__':
 
     fashion_dataset = FashionDataset(csv_file=csv_file, img_dir=img_dir, transform=transform)
 
-    # 数据集长度
+    # Data set length
     dataset_size = len(fashion_dataset)
 
-    # 定义训练集和测试集的大小
+    # Define the size of the training and test sets
     test_size = int(0.2 * dataset_size)
     train_size = dataset_size - test_size
 
-    # 使用 random_split 划分数据集
+    # Splitting a dataset using random_split, also can use dataloader split
     train_dataset, test_dataset = random_split(fashion_dataset, [train_size, test_size])
 
-    # 创建 DataLoader 仅用于测试集
+    # Creating a DataLoader for Test Sets Only
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
     train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
-    # 初始化模型和处理器
+    # Initialising models and processors
     clip_model = CLIPModel.from_pretrained("patrickjohncyh/fashion-clip").to(device)
     processor = CLIPProcessor.from_pretrained("patrickjohncyh/fashion-clip")
 
-    # 初始化模型
+    # Initialising the model
     gnn_model = GCN(47, 47, 47)
 
-    # 冻结浅层参数，只微调高层
+    # Freeze shallow parameters and fine-tune only the upper levels
     for name, param in clip_model.named_parameters():
         if "encoder.layers.7" in name or "encoder.layers.8" in name or "encoder.layers.9" in name:
             param.requires_grad = True
         else:
             param.requires_grad = False
     model = FashionClassificationModel(clip_model, processor, gnn_model=gnn_model, use_fusion=False).to(device)
-    # 获取知识图谱 G
+    # get Knowledge Graph G
     G, all_entities, node_features = get_graph_data()
-    # 定义损失函数
-    # 优化器
+    # Define the loss function
+    # Optimiser
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     # optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-5)
 
-    # 训练模型
+    # train
     num_epochs = 5
 
-    # 设置初始 alpha 值
-    initial_alpha = 0.5  # 初始时对比学习损失和分类损失的权重相等
+    # Set initial alpha value
+    initial_alpha = 0.5  # Initially the comparison learning loss and classification loss are equally weighted
     for epoch in range(num_epochs):
-        # 动态调整 alpha 值，可以根据具体情况调整策略
+        # Dynamically adjusting the alpha value allows you to tailor the strategy to the situation
         # if epoch > 5:
-        #     alpha = 0.3  # 后期更注重分类损失
+        #     alpha = 0.3  # More focus on classified losses in later years
         # else:
         #     alpha = initial_alpha
         train(model, train_dataloader, optimizer, G, epoch,test_loader,top_k=5)
         torch.save(model.state_dict(), f"fashion_mode_select1.pth")
-    # 保存训练和测试结果
+    # Save training and test results
     save_results()
-    # 绘制损失曲线
+    # Plotting loss curves
     plot_loss_curve()

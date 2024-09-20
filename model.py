@@ -1,6 +1,4 @@
-
 import torch
-
 from Project.fashion.final_GraphKG.ttkey import extract_key_info
 # from Project.fashion.final_GraphKG.est_with_knn import get_nerb
 from loss import compute_sdm
@@ -9,10 +7,10 @@ import difflib
 
 
 def find_closest_entity(entity, all_entities, cutoff=0.8):
-    # 通过 difflib 找到与 entity 最相似的实体
+    # Finding the most similar entity to entity with difflib
     close_matches = difflib.get_close_matches(entity, all_entities, n=1, cutoff=cutoff)
     if close_matches:
-        return close_matches[0]  # 返回最相似的匹配
+        return close_matches[0]  # Returns the most similar match
     return None
 
 
@@ -21,10 +19,10 @@ import torch.nn.functional as F
 
 
 def find_closest_entity_by_embedding(entity_embedding, all_entity_embeddings, top_k=1):
-    # 计算输入实体嵌入与所有实体嵌入之间的余弦相似度
+    # Calculate the cosine similarity between the input entity embedding and all entity embeddings
     similarities = F.cosine_similarity(entity_embedding.unsqueeze(0), all_entity_embeddings, dim=-1)
     top_k_indices = torch.topk(similarities, top_k).indices
-    return top_k_indices  # 返回最相似的节点索引
+    return top_k_indices  # Returns the index of the most similar node
 
 
 def get_nerb(entity_list, G, entity_embeddings, top_k=5):
@@ -32,13 +30,13 @@ def get_nerb(entity_list, G, entity_embeddings, top_k=5):
     if isinstance(entity_list, list):
         for entity in entity_list:
             try:
-                # 通过实体名称找到对应的实体嵌入
+                # Find the corresponding entity embedding by entity name
                 entity_embedding = entity_embeddings.get(entity, None)
                 if entity_embedding is None:
-                    # 如果找不到嵌入，则跳过该实体
+                    # If the embedding is not found, the entity is skipped
                     continue
 
-                # 获取邻居节点，并限制数量为 top_k
+                # Get neighbour nodes and limit the number to top_k
                 neighbors = list(G.neighbors(entity))[:top_k]
                 neighbors = neighbors + [entity]
                 nodes_in_subgraph += neighbors
@@ -48,7 +46,7 @@ def get_nerb(entity_list, G, entity_embeddings, top_k=5):
         try:
             entity_embedding = entity_embeddings.get(entity_list, None)
             if entity_embedding is None:
-                return nodes_in_subgraph  # 如果找不到嵌入，则返回空
+                return nodes_in_subgraph  # Returns null if no embedding is found
             neighbors = list(G.neighbors(entity_list))[:top_k]
             neighbors = neighbors + [entity_list]
             nodes_in_subgraph += neighbors
@@ -80,14 +78,14 @@ class FashionClassificationModel(nn.Module):
             return outputs_dict
 
     def forward(self, all_category_text_prompts, images, label, data, G, top_k=5, device='cuda'):
-        # Step 1: 获取图像嵌入 Q
+        # Step 1: Get image embedding Q
         image_inputs = self.processor(images=images, return_tensors="pt").to(device)
         image_embeds = self.clip_model.get_image_features(**image_inputs)
 
         gnn_feature = self.gnn_model(data)
         gnn_feature = self.gcn_align(gnn_feature)
 
-        # Step 2: 获取文本嵌入 T
+        # Step 2: Get text embedding T
         all_category_text_embeds = {}
         contrastive_loss_dict = {}
         final_text_embeds = {}
@@ -98,36 +96,36 @@ class FashionClassificationModel(nn.Module):
             text_embeds = self.clip_model.get_text_features(**text_inputs)
             all_category_text_embeds[key] = text_embeds
 
-            # Step 3: 使用 get_nerb 函数分别为每个文本获取邻居节点
+            # Step 3: Use the get_nerb function to get neighbouring nodes for each text separately
             neighbor_embeds_list = []
             for text_prompt in text_prompt_list:
                 # print(text_prompt)
                 top_k_neighbors = get_nerb(text_prompt, G, entity_embeddings=gnn_feature, top_k=top_k)
                 # print(top_k_neighbors)
-                # Step 4: 根据邻居节点获取对应的 GNN 嵌入
+                # TODO
+                # Step 4: Get the corresponding GNN embedding based on neighbouring nodes
                 if top_k_neighbors:
-                    neighbor_embeds = gnn_feature[top_k_neighbors]  # 根据邻居节点索引获取相应的 GNN 嵌入
+                    neighbor_embeds = gnn_feature[top_k_neighbors]  # Get the corresponding GNN embedding based on the neighbour node index
                 else:
-                    # TODO
-                    # 使用所有节点的平均嵌入
+                    # Use the average embedding of all nodes
                     neighbor_embeds = gnn_feature.mean(dim=0, keepdim=True).to(device)
-                neighbor_embeds_list.append(torch.mean(neighbor_embeds, dim=0, keepdim=True))  # 平均聚合邻居嵌入
+                neighbor_embeds_list.append(torch.mean(neighbor_embeds, dim=0, keepdim=True))  # Average aggregated neighbour embedding
             # print(neighbor_embeds_list)
-            # Step 5: 将所有文本的邻居嵌入进行堆叠，并与对应的文本嵌入融合
+            # Step 5: Stack all text neighbour embeddings and blend them with the corresponding text embedding
             if neighbor_embeds_list:
-                aggregated_gnn_embeds = torch.cat(neighbor_embeds_list, dim=0)  # 将所有文本的邻居嵌入拼接起来
+                aggregated_gnn_embeds = torch.cat(neighbor_embeds_list, dim=0)  # Splice neighbour embedding of all text
             else:
                 aggregated_gnn_embeds = torch.zeros_like(text_embeds).to(device)
 
-            # Step 6: 计算文本嵌入与 GNN 嵌入的融合
-            final_embeds = (text_embeds + aggregated_gnn_embeds) / 2  # 简单地取平均作为融合方式
+            # Step 6: Fusion of computational text embeddings with GNN embeddings
+            final_embeds = (text_embeds + aggregated_gnn_embeds) / 2  # Simply averaging as a fusion method
             final_text_embeds[key] = final_embeds
 
             contrastive_loss = compute_sdm(image_embeds, final_text_embeds[key], label[key][0].cuda(), 1 / 0.02)
             # print(contrastive_loss)
             contrastive_loss_dict[key] = contrastive_loss
 
-        # Step 6: 计算图像嵌入与 GNN 嵌入的对比学习损失
+        # Step 7: Compute the learning loss of image embeddings compared to GNN embeddings
         contrastive_loss_gnn = compute_sdm(image_embeds, gnn_feature, torch.arange(0, len(image_embeds)).cuda(), 1 / 0.02)
 
         outputs_dict = {
@@ -135,7 +133,7 @@ class FashionClassificationModel(nn.Module):
             "all_category_text_embeds": all_category_text_embeds,
             "gnn_loss": contrastive_loss_gnn
         }
-        # 清理不必要的张量以释放显存
+        # Clean up unnecessary tensors to free up video memory
         del image_embeds, text_embeds
         torch.cuda.empty_cache()
         return outputs_dict

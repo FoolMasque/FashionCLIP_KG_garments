@@ -25,7 +25,7 @@ def get_nerb(entity_list,G, top_k=5):
     if isinstance(entity_list, list):
         for entity in entity_list:
             try:
-                # 通过切片 [:top_k] 来限制返回的邻居节点数量为 top_k
+                # Limit the number of neighbouring nodes returned to top_k by slicing [:top_k]
                 neighbors = list(G.neighbors(entity))[:top_k]
                 neighbors = neighbors + [entity]
                 nodes_in_subgraph += neighbors
@@ -33,7 +33,7 @@ def get_nerb(entity_list,G, top_k=5):
                 pass
     else:
         try:
-            # 对单个实体进行相同的操作，限制返回的邻居节点为 top_k
+            # Performing the same operation on a single entity restricts the neighbouring nodes returned to top_k
             neighbors = list(G.neighbors(entity_list))[:top_k]
             neighbors = neighbors + [entity_list]
             nodes_in_subgraph += neighbors
@@ -47,25 +47,24 @@ def est0(model, image,top_k=5):
     model.train()
     G, all_entities, node_features = get_graph_data()
 
-    # 确保 node_features 是 Tensor 格式
+    # Ensure that node_features is in Tensor format
     node_feature_list = []
     for node in all_entities:
         feature = node_features[node]
-        if isinstance(feature, list):  # 如果 feature 是 list，将其转换为 Tensor
+        if isinstance(feature, list):  # If the feature is a list, convert it to a Tensor.
             feature = torch.tensor(feature, dtype=torch.float32)
         node_feature_list.append(feature)
 
-    node_feature_tensor = torch.stack(node_feature_list).to(device)  # 将所有节点特征拼接成一个张量
+    node_feature_tensor = torch.stack(node_feature_list).to(device)  # Splicing all node features into a tensor
 
     all_prompts = ['blue', 'black', 'red']
 
-    # 使用 CLIP 模型编码文本为嵌入向量
+    # Encoding text as embedding vectors using the CLIP model
     text_inputs = model.processor(text=all_prompts, return_tensors="pt", padding=True, truncation=True).to(device)
-    text_embeddings = model.clip_model.get_text_features(**text_inputs).detach()  # 使用 CLIP 模型获取文本嵌入
+    text_embeddings = model.clip_model.get_text_features(**text_inputs).detach()  # Getting Text Embedding with the CLIP Model
 
     with autocast():
         outputs = model.test(images=image,text=all_prompts)
-        # 计算准确率
     model.eval()
     with torch.no_grad():
         sim_i = outputs['image_embeds']
@@ -79,7 +78,7 @@ def est0(model, image,top_k=5):
     for i in range(len(all_prompts)):
         item = all_prompts[i]
         g_n[i] = get_nerb(item, G, top_k=top_k)
-        # 打印每个文本描述的 TopK 邻居节点
+        # Print the TopK neighbour nodes for each text description
         print(f"TopK neighbors for '{item}': {g_n[i]}")
     with torch.no_grad():
         sim_i = outputs['image_embeds']
@@ -120,7 +119,7 @@ if __name__ == '__main__':
 
     fashion_dataset = FashionDataset(csv_file=csv_file, img_dir=img_dir, transform=transform)
     dataloader0 = DataLoader(fashion_dataset, batch_size=64, shuffle=True)
-    # 初始化模型和处理器
+    # Initialising models and processors
     clip_model = CLIPModel.from_pretrained("patrickjohncyh/fashion-clip").to(device)
     processor = CLIPProcessor.from_pretrained("patrickjohncyh/fashion-clip")
     from gnn import GCN

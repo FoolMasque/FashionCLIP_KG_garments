@@ -60,7 +60,7 @@ class FashionDataset(Dataset):
         item_name = self.data_frame.iloc[idx]['item Type']
 
         # attributes
-        # 单标签属性
+        # Single label Attributes
         closure = self.data_frame.iloc[idx]['closure']
         colour = self.data_frame.iloc[idx]['colour']
         fabric_type = self.data_frame.iloc[idx]['fabric Type']
@@ -126,7 +126,7 @@ class FashionDataset(Dataset):
             if edge_index == []:
                 edge_index = [[0, 1],[1, 0]]
                 x = torch.tensor([0], dtype=torch.float)
-            # 转换为 PyTorch 张量
+            # Convert to tensor
             edge_index = torch.tensor(edge_index, dtype=torch.long)
             data = Data(x=x, edge_index=edge_index)
 
