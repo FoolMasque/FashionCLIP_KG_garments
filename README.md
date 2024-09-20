@@ -10,7 +10,7 @@ typora-root-url: ./results
 
 **Training Loss Curve (Epoch 100)**
 
-![](/loss_curve.png)
+![](results/loss_curve.png)
 
 
 **Training Accuracy for Different Tasks:**
