@@ -4,9 +4,17 @@ typora-root-url: ./results
 
 # FashionCLIP_KG_garments
 
+**Download Files:**
+
+- [Dataset](https://drive.google.com/file/d/1VMoHI8XpuZYAb4Ne3KFRUXIjileguQNv/view?usp=drive_link) 
+- [Model](https://drive.google.com/file/d/1oBwG_ArN1m8xy2z0WemZYCj2kUJ1x-o-/view?usp=drive_link) 
+
 **Training Loss Curve (Epoch 100)**
 
 ![](/loss_curve.png)
+
+
+
 
 **Training Accuracy for Different Tasks:**
 Here is a summary of the training accuracy for each classification task based on the final epoch (Epoch 99):
